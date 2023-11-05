@@ -50,6 +50,6 @@ $$
 \frac{\partial u}{\partial n} = 0\text{ на }\Gamma_3\text{ i }\Gamma_6.
 $$
 <p align="center">
-<img src="./imgs/ZeroFHalfDirichletRegion.png" alt="Image of region with boundaries" style="width:40%; border:0;">
+    <img src="./imgs/ZeroFHalfDirichletRegion.png" alt="Image of region with boundaries" style="width:40%; border:0;">
 </p>
 
