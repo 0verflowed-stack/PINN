@@ -62,7 +62,10 @@ best_epoch = 0
 best_loss = float('inf')
 
 start_time = time.time()
-for epoch in range(n_epochs + 1):
+loss = tf.constant(1)
+epoch = 0
+#for epoch in range(n_epochs + 1):
+while loss.numpy() > math.pow(0.1, 4):
     with tf.GradientTape() as tape:
         p, k_x_p_x_X = model.forward(x_train)
         loss = model.loss_fn(p, k_x_p_x_X, x_train)
@@ -76,6 +79,7 @@ for epoch in range(n_epochs + 1):
     loss_array.append(loss.numpy())
     if epoch % 100 == 0:
         print(f'Epoch {epoch}, Loss: {loss.numpy()}')
+    epoch += 1
 
 
 print("Training took %s seconds" % (time.time() - start_time))
