@@ -50,14 +50,14 @@ class Puasson1DPINN(tf.keras.Model):
         bc_dirichlet_left_right = self.dirichlet_condition(x_bc_left_right, u_bc_left_right)
         return tf.reduce_mean(tf.square(puasson_eq)) + 10 * bc_dirichlet_left_right
 
-    def train(self, x_train, x_bc_left_right, u_bc_left_right):
+    def train(self, loss_threshold, x_train, x_bc_left_right, u_bc_left_right):
         loss_array = []
         start_time = time.time()
 
         loss = tf.constant(1)
         epoch = 0
 
-        while loss.numpy() > 0.01:
+        while loss.numpy() > loss_threshold:
             with tf.GradientTape() as tape:
                 u, u_x, u_x_x = self.forward(x_train)
                 loss = self.loss_fn(u_x_x, x_train, x_bc_left_right, u_bc_left_right)
@@ -92,6 +92,7 @@ L_x_1D = 0.0
 R_x_1D = 1.0
 Dirichlet_left_1D = 1
 Dirichlet_right_1D = 0
+loss_threshold_1D = 0.01
 layers_1D = [10, 10, 10, 1]
 learning_rate_1D = 0.005
 optimizer_1D = tf.keras.optimizers.Adam(learning_rate=learning_rate_1D)
@@ -102,7 +103,7 @@ x_train_1D = np.linspace(L_x_1D, R_x_1D, N_of_train_points_1D)[:, np.newaxis]
 x_bc_left_right_1D = np.array([L_x_1D, R_x_1D])[:, np.newaxis]
 u_bc_left_right_1D = np.array([Dirichlet_left_1D, Dirichlet_right_1D])[:, np.newaxis]
 
-model_1D.train(x_train_1D, x_bc_left_right_1D, u_bc_left_right_1D)
+model_1D.train(loss_threshold_1D, x_train_1D, x_bc_left_right_1D, u_bc_left_right_1D)
 
 U_exact_1D = model_1D.exact_solution(x_train_1D)
 
@@ -139,7 +140,7 @@ plt.plot(x_test_1D, u_pred_1D, label='PINN Solution')
 plt.plot(x_test_1D, U_exact_1D, label='Exact Solution')
 plt.xlabel('x')
 plt.ylabel('u')
-plt.title('PINN Solution for the 1D Poisson Equation')
+plt.title('PINN Solution for the 1D Laplace Equation')
 plt.legend()
 plt.savefig("1d_laplace_equation_approx_exact_solution.png")
 plt.show()
@@ -198,14 +199,14 @@ class Puasson2DPINN(tf.keras.Model):
         weight_of_boundaries = 5
         return tf.reduce_mean(tf.square(puasson_eq)) + weight_of_boundaries * (bc_dirichlet + bc_neuman)
 
-    def train(self, x1_x2_train, x1_x2_bc_left_right, x1_x2_bc_up, x1_x2_bc_down, u_bc_up, u_bc_down):
+    def train(self, loss_threshold, x1_x2_train, x1_x2_bc_left_right, x1_x2_bc_up, x1_x2_bc_down, u_bc_up, u_bc_down):
         loss_array = []
         start_time = time.time()
 
         loss = tf.constant(1)
         epoch = 0
 
-        while loss.numpy() > 0.01:
+        while loss.numpy() > loss_threshold:
             with tf.GradientTape() as tape:
                 u, u_x1, u_x2, u_x1_x1, u_x2_x2 = self.forward(x1_x2_train)
                 loss = self.loss_fn(
@@ -235,6 +236,10 @@ class Puasson2DPINN(tf.keras.Model):
         x2 = np.array([x[1] for x in x1_x2])
         return 0
     
+    def exact_solution(self, x1_x2):
+        x1 = np.array([x[0] for x in x1_x2])
+        return -x1 + 1
+    
 N_of_train_points_2D = 5
 N_of_test_points_2D = 101
 L_x1_2D = 0.0
@@ -243,6 +248,7 @@ L_x2_2D = 0.0
 R_x2_2D = 1.0
 Dirichlet_up_2D = 0
 Dirichlet_down_2D = 1
+loss_threshold_2D = 0.01
 layers_2D = [10, 10, 10, 1]
 learning_rate_2D = 0.005
 optimizer_2D = tf.keras.optimizers.Adam(learning_rate=learning_rate_2D)
@@ -283,7 +289,9 @@ x1_x2_bc_down = np.hstack((x1_train, x2_bc_down))
 u_bc_up = Dirichlet_up_2D * np.ones_like(x1_train)
 u_bc_down = Dirichlet_down_2D * np.ones_like(x1_train)
 
-model_2D.train(x1_x2_train, x1_x2_bc_left_right, x1_x2_bc_up, x1_x2_bc_down, u_bc_up, u_bc_down)
+model_2D.train(
+    loss_threshold_2D, x1_x2_train, x1_x2_bc_left_right, x1_x2_bc_up, x1_x2_bc_down, u_bc_up, u_bc_down
+)
 
 def save_and_load_model(layers):
     # Save weights to file
@@ -310,13 +318,13 @@ x2_test = np.linspace(L_x2_2D, R_x2_2D, N_of_test_points_2D)[:, np.newaxis]
 x1_mesh, x2_mesh = np.meshgrid(x1_test, x2_test)
 x1x2_test = np.hstack((x1_mesh.flatten()[:, np.newaxis], x2_mesh.flatten()[:, np.newaxis]))
 
-u_pred = model_2D.predict(x1x2_test).reshape(x1_test.shape[0], x2_test.shape[0])
+u_pred_2D = model_2D.predict(x1x2_test).reshape(x1_test.shape[0], x2_test.shape[0])
 
 # Find the index corresponding to x1 = (L_x1_2D + R_x1_2D)/2
 index_x1_05 = np.argmin(np.abs(x1_test - (L_x1_2D + R_x1_2D)/2))
 
 # Extract the values along the line x1 = (L_x1_2D + R_x1_2D)/2
-u_pred_1D_05 = u_pred[:, index_x1_05]  # Assuming u_pred is 2D with shape (len(x2_test), len(x_test))
+u_pred_1D_05 = u_pred_2D[:, index_x1_05]  # Assuming u_pred is 2D with shape (len(x2_test), len(x_test))
 
 # Calculate the MSE for 1D exact and 2D middle of interval [L_x1_2D, R_x1_2D]
 mse_1D = np.mean((u_pred_1D_05 - U_exact_1D.squeeze())**2)
@@ -325,8 +333,14 @@ print(f"Mean Square Error for 1D exact and 2D middle of interval [{L_x1_2D}, {R_
 error_percentage_2D = calculate_max_relative_error(u_pred_1D_05, U_exact_1D.squeeze())
 print(f"Error based on max difference for 1D exact and 2D middle of interval [{L_x1_2D}, {R_x1_2D}]: {error_percentage_2D:.2f}%")
 
+# U_exact_2D = model_2D.exact_solution(x1x2_test)
+
+# error_percentage_2D = calculate_max_relative_error(u_pred_2D.flatten(), U_exact_2D)
+# print(f"Error based on max difference for 2D exact and 2D PINN [{L_x1_2D}, {R_x1_2D}]: {error_percentage_2D:.2f}%")
+
+
 plt.figure(figsize=(8, 6))
-plt.pcolor(x1_mesh, x2_mesh, u_pred, cmap='viridis')
+plt.pcolor(x1_mesh, x2_mesh, u_pred_2D, cmap='viridis')
 plt.colorbar()
 plt.xlabel('x_1')
 plt.ylabel('x_2')
@@ -337,15 +351,15 @@ plt.show(block=False)
 fig = plt.figure(figsize=(10, 6))
 ax = fig.add_subplot(111, projection='3d')
 
-surf = ax.plot_surface(x1_mesh, x2_mesh, u_pred, cmap='viridis', linewidth=0, antialiased=False, label='PINN Solution 2D', zorder=0, alpha=0.8)
-line, = ax.plot(np.ones_like(x_test_1D) * 0.5, x_test_1D, u_pred_1D, label='PINN Solution 1D', zorder=2)
-line2, = ax.plot(np.ones_like(x_test_1D) * 0.5, x_test_1D, U_exact_1D, label='Exact Solution 1D', zorder=1)
-ax.plot(np.ones_like(x_test_1D) * 0.5, x_test_1D, U_exact_1D, label='Exact Solution 1D')
+surf = ax.plot_surface(x1_mesh, x2_mesh, u_pred_2D, cmap='viridis', linewidth=0, antialiased=False, label='PINN Solution 2D', zorder=0, alpha=0.8)
+line, = ax.plot(np.ones(N_of_test_points_1D) * 0.5, x_test_1D.flatten(), u_pred_1D.flatten(), label='PINN Solution 1D', zorder=2)
+line2, = ax.plot(np.ones(N_of_test_points_1D) * 0.5, x_test_1D.flatten(), U_exact_1D.flatten(), label='Exact Solution 1D', zorder=1)
+ax.plot(np.ones(N_of_test_points_1D) * 0.5, x_test_1D.flatten(), U_exact_1D.flatten(), label='Exact Solution 1D')
 
 ax.set_xlabel('x_1')
 ax.set_ylabel('x_2')
 ax.set_zlabel('u')
-ax.set_title('PINN Solution for the Puasson Equation')
+ax.set_title('PINN Solution for the Laplace Equation')
 
 color_for_legend = cm.viridis(0.5)
 proxy = Rectangle((0, 0), 1, 1, fc=color_for_legend, edgecolor="k")
