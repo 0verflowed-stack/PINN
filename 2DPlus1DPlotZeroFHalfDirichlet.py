@@ -191,7 +191,7 @@ plt.pcolor(x1_mesh, x2_mesh, u_pred, cmap='viridis')
 plt.colorbar()
 plt.xlabel('x_1')
 plt.ylabel('x_2')
-plt.title('PINN Solution for the Laplace Equation')
+plt.title('PINN Solution for the Laplace\'s Equation')
 plt.savefig('PINN_solution_half_dirichlet_Laplace_3D_heatmap.png')
 plt.show(block=False)
 
@@ -201,7 +201,7 @@ surf = ax.plot_surface(x1_mesh, x2_mesh, u_pred, cmap='viridis', linewidth=0, an
 ax.set_xlabel('x_1')
 ax.set_ylabel('x_2')
 ax.set_zlabel('u')
-ax.set_title('PINN Solution for the Laplace Equation')
+ax.set_title('PINN Solution for the Laplace\'s Equation')
 
 color_for_legend = cm.viridis(0.5) # Get the color from the colormap
 proxy = Rectangle((0, 0), 1, 1, fc=color_for_legend, edgecolor="k")
@@ -254,7 +254,7 @@ solve(a == L, u, bcs)
 # Plot solution using matplotlib
 c = plot(u)
 plt.colorbar(c)
-plt.title("FEM solution of Laplace equation")
+plt.title("FEM solution of Laplace\'s equation")
 plt.xlabel('x')
 plt.ylabel('y')
 plt.savefig('fenics_solution_half_dirichlet_Laplace_heatmap.png')
