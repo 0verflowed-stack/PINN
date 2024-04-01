@@ -152,3 +152,12 @@ $$ -->
     <img src="./imgs/ZeroFHalfDirichletRegion.png" alt="Image of region with boundaries" style="width:40%; border:0;">
 </p>
 
+6. File 2DPlus1DPlotRobin.ipynb solves non-stationary 1D heat equation:
+
+$$
+\bigtriangleup u = 0, \quad x \in \Omega = (0, 1) \times (0, 1),
+$$
+
+$$
+
+$$

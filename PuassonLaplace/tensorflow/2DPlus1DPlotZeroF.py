@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import time
 from matplotlib.patches import Rectangle
 from matplotlib import cm
-from utils import calculate_max_relative_error
+from PINN.tensorflow.PuassonLaplace.utils import calculate_max_relative_error
 
 tf.random.set_seed(42)
 np.random.seed(42)
