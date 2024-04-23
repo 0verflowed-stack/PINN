@@ -5,11 +5,12 @@ Solutions are compared to exact solution or FEM solution.
 
 Here is a list of equations that are solved:
 1. File 1DLinearPINN.py solves 1D linear Puasson's equation:
+
 <!-- $$
--(k(x)'p)'= f(x), x \in (0,1),
+-(k(x)p')'= f(x), x \in (0,1),
 $$ --> 
 
-<div align="center"><img style="background: white;" src="./svg/uMGXBfDa3x.svg"></div>
+<div align="center"><img style="background: white;" src="./svg/Uv8VMnIWXk.svg"></div>
 
 <!-- $$
 p(0)=p(1)=0,
@@ -26,11 +27,13 @@ $$ -->
 
 
 2. File 1DNonLinearPINN.py solves 1D Nonlinear Puasson's equation:
+
 <!-- $$
--(k(x,p)'p)'= f(x), x \in (0,1),
+-(k(x,p)p')'= f(x), x \in (0,1),
 $$ --> 
 
-<div align="center"><img style="background: white;" src="./svg/5hGc6K10kU.svg"></div>
+<div align="center"><img style="background: white;" src="./svg/9JLKxcgktC.svg"></div> 
+
 
 <!-- $$
 p(0)=p(1)=0,
@@ -205,7 +208,7 @@ $$
 8. File 2DNonStationaryHeatEquation.ipynb solves non-stationary 2D heat equation:
 
 $$
-\frac{\partial u}{\partial t} = \bigtriangleup u, \quad (x,t) \in \Omega = (0, 1)^2\times (0, 1),
+\frac{\partial u}{\partial t} = \bigtriangleup u, \quad (x,t) \in \Omega = (0, 1)^2\times (0, 0.2),
 $$
 
 $$
@@ -213,9 +216,45 @@ u(0, x_2, t) = u(x_{1 max},x_2, t) = u(x_1, 0, t) = u(x_1, x_2, 0) = 0,
 $$
 
 $$
-u(x_1, x_{2 max}) = 1.
+u(x_1, x_{2 max}, t) = 1.
 $$
 
 <!-- $$
 u((x_1, x_2), 0) = \sin(\pi x_1) - \sin(2 \pi x_2) + \sin(3 \pi x_1).
 $$ -->
+9.
+$$
+div(\lambda grad u) + \omega=c\rho\frac{\partial u}{\partial \tau},
+$$
+
+$$
+u=f(x,\tau),
+$$
+
+$$
+\lambda\frac{\partial u}{\partial n}=\alpha(u-u_c)
+$$
+
+$$
+\lambda = 0.557*10^{-7} \frac{W}{m^2K}, 
+$$
+
+$$
+c\rho=1, 
+$$
+
+$$
+\alpha=0.592*10^{-3}, 
+$$
+
+$$
+r=0.141, 
+$$
+
+$$
+u_0=323,
+$$
+
+$$
+u_c=823(1-0.5473*e^{-53.6\tau}).
+$$
