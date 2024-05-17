@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import time
 from matplotlib.patches import Rectangle
 from matplotlib import cm
-from utils import calculate_max_relative_error
+from PINN.tensorflow.PuassonLaplace.utils import calculate_max_relative_error
 
 tf.random.set_seed(42)
 np.random.seed(42)
@@ -13,7 +13,7 @@ class Puasson1DPINN(tf.keras.Model):
     def __init__(self, layers, optimizer):
         super(Puasson1DPINN, self).__init__()
         self.hidden_layers = [
-                tf.keras.layers.Dense(
+            tf.keras.layers.Dense(
                     layer,
                     activation=tf.nn.tanh,
                     kernel_initializer=tf.keras.initializers.GlorotNormal(seed=177013)
@@ -39,26 +39,27 @@ class Puasson1DPINN(tf.keras.Model):
 
         del tape2
 
-        return u, u_x_x
+        return u, u_x, u_x_x
 
     def dirichlet_condition(self, x_bc_left_right, u_bc_left_right):
-        u, _ = self.forward(x_bc_left_right)
+        u, _, _ = self.forward(x_bc_left_right)
         return tf.reduce_mean(tf.square(u - u_bc_left_right))
 
     def loss_fn(self, u_x_x, x_train, x_bc_left_right, u_bc_left_right):
         puasson_eq = u_x_x - self.f(x_train)
         bc_dirichlet_left_right = self.dirichlet_condition(x_bc_left_right, u_bc_left_right)
-        return tf.reduce_mean(tf.square(puasson_eq)) + bc_dirichlet_left_right
-    
+        return tf.reduce_mean(tf.square(puasson_eq)) + 10 * bc_dirichlet_left_right
+
     def train(self, loss_threshold, x_train, x_bc_left_right, u_bc_left_right):
         loss_array = []
         start_time = time.time()
+
         loss = tf.constant(1)
         epoch = 0
 
         while loss.numpy() > loss_threshold:
             with tf.GradientTape() as tape:
-                _, u_x_x = self.forward(x_train)
+                u, u_x, u_x_x = self.forward(x_train)
                 loss = self.loss_fn(u_x_x, x_train, x_bc_left_right, u_bc_left_right)
             grads = tape.gradient(loss, self.trainable_variables)
             self.optimizer.apply_gradients(zip(grads, self.trainable_variables))
@@ -76,60 +77,62 @@ class Puasson1DPINN(tf.keras.Model):
         plt.ylabel('Loss')
         plt.grid()
         plt.title('Mean loss')
-        plt.savefig("1d_poisson_equation_training.png")
+        plt.savefig("1d_laplace_equation_training.png")
         plt.show(block=False)
 
     def f(self, x):
-        return -np.pi * np.sin(np.pi * x)
+        return 0
 
     def exact_solution(self, x):
-        return np.sin(np.pi * x)/np.pi
+        return -x + 1
 
-N_of_train_points_1D = 10
+N_of_train_points_1D = 5
 N_of_test_points_1D = 101
 L_x_1D = 0.0
 R_x_1D = 1.0
-Dirichlet_left_1D = 0.0
-Dirichlet_right_1D = 0.0
-loss_threshold_1D = 0.001
-Layers_1D = [10, 10, 10, 1]
-Learning_rate_1D = 0.005
-Optimizer_1D = tf.keras.optimizers.Adam(learning_rate=Learning_rate_1D)
+Dirichlet_left_1D = 1
+Dirichlet_right_1D = 0
+loss_threshold_1D = 0.01
+layers_1D = [10, 10, 10, 1]
+learning_rate_1D = 0.005
+optimizer_1D = tf.keras.optimizers.Adam(learning_rate=learning_rate_1D)
 
-model_1D = Puasson1DPINN(Layers_1D, Optimizer_1D)
+model_1D = Puasson1DPINN(layers_1D, optimizer_1D)
 
 x_train_1D = np.linspace(L_x_1D, R_x_1D, N_of_train_points_1D)[:, np.newaxis]
 x_bc_left_right_1D = np.array([L_x_1D, R_x_1D])[:, np.newaxis]
-u_bc_left_right_1D = np.array([Dirichlet_left_1D, Dirichlet_right_1D])[:, np.newaxis]# Dirichlet boundary condition (left and right)
+u_bc_left_right_1D = np.array([Dirichlet_left_1D, Dirichlet_right_1D])[:, np.newaxis]
 
 model_1D.train(loss_threshold_1D, x_train_1D, x_bc_left_right_1D, u_bc_left_right_1D)
 
-def save_and_load_model(model, layers, fileName):
+U_exact_1D = model_1D.exact_solution(x_train_1D)
+
+def save_and_load_weights(model_In, layers, fileName):
     # Save weights to file
-    model.save_weights(f'{fileName}.h5')
+    model_In.save_weights(f'{fileName}.h5')
 
     # Instantiate a new model with the same layers and wave speed
-    new_model = Puasson1DPINN(layers)
+    model_out = Puasson1DPINN(layers)
 
     # Create some dummy input
-    dummy_x = np.linspace(0, 1, 10)[:, np.newaxis]
+    dummy_x_1D = np.linspace(0, 1, 10)[:, np.newaxis]
 
     # Call the model on the dummy input to create variables
-    _ = new_model(dummy_x)
+    _ = model_out(dummy_x_1D)
 
     # Load the weights from the saved file
-    loaded_model = new_model.load_weights(f'{fileName}.h5')
+    loaded_model = model_out.load_weights(f'{fileName}.h5')
     return loaded_model
+#save_and_load_weights(model_1D, layers_1D, 'laplace_1d')
 
-#save_and_load_model(model_1D, layers)
-
+# Visualize the solution
 x_test_1D = np.linspace(L_x_1D, R_x_1D, N_of_test_points_1D)[:, np.newaxis]
-u_pred_1D = model_1D.predict(x_test_1D).reshape(x_test_1D.shape[0])
 U_exact_1D = model_1D.exact_solution(x_test_1D)
+u_pred_1D = model_1D.predict(x_test_1D)
 
 print("Mean Square Error: ", np.mean((u_pred_1D - U_exact_1D)**2))
 
-error_percentage = calculate_max_relative_error(u_pred_1D, U_exact_1D.flatten())
+error_percentage = calculate_max_relative_error(u_pred_1D, U_exact_1D)
 print(f"Relative error: {error_percentage:.2f}%")
 
 plt.figure()
@@ -137,16 +140,16 @@ plt.plot(x_test_1D, u_pred_1D, label='PINN Solution')
 plt.plot(x_test_1D, U_exact_1D, label='Exact Solution')
 plt.xlabel('x')
 plt.ylabel('u')
-plt.title('PINN Solution for the 1D Poisson\'s Equation')
+plt.title('PINN Solution for the 1D Laplace\'s Equation')
 plt.legend()
-plt.savefig("1d_poisson_equation_approx_exact_solution.png")
+plt.savefig("1d_laplace_equation_approx_exact_solution.png")
 plt.show()
 
 class Puasson2DPINN(tf.keras.Model):
     def __init__(self, layers, optimizer):
         super(Puasson2DPINN, self).__init__()
         self.hidden_layers = [
-                tf.keras.layers.Dense(
+            tf.keras.layers.Dense(
                     layer,
                     activation=tf.nn.tanh,
                     kernel_initializer=tf.keras.initializers.GlorotNormal(seed=177013)
@@ -179,32 +182,36 @@ class Puasson2DPINN(tf.keras.Model):
 
         return u, u_x1, u_x2, u_x1_x1, u_x2_x2
 
-    def dirichlet_condition(self, x1_x2_bc_up_down, u_bc_up, u_bc_down):
-        u, _, _, _, _ = self.forward(x1_x2_bc_up_down)
-        u, _, _, _, _ = self.forward(x1_x2_bc_up_down)
-        return tf.reduce_mean(tf.square(u))
+    def dirichlet_condition(self, x1_x2_bc_up, x1_x2_bc_down, u_bc_up, u_bc_down):
+        u_up, _, _, _, _ = self.forward(x1_x2_bc_up)
+        u_down, _, _, _, _ = self.forward(x1_x2_bc_down)
+        return tf.reduce_mean(tf.square(u_up - u_bc_up)) + tf.reduce_mean(tf.square(u_down - u_bc_down))
 
     def neuman_condition(self, x1_x2_bc_left_right):
         _, u_x1, _,  _, _ = self.forward(x1_x2_bc_left_right)
         return tf.reduce_mean(tf.square(u_x1)) # -∂u/∂x1 + ∂u/∂x1
 
-    def loss_fn(self, x1_x2_train, u_x1_x1, u_x2_x2, x1_x2_bc_left_right, x1_x2_bc_up_down, u_bc_up, u_bc_down):
+    def loss_fn(self, x1_x2_train, u_x1_x1, u_x2_x2, x1_x2_bc_left_right, x1_x2_bc_up, x1_x2_bc_down, u_bc_up, u_bc_down):
         puasson_eq = u_x1_x1 + u_x2_x2 - self.f(x1_x2_train)
-        bc_dirichlet = self.dirichlet_condition(x1_x2_bc_up_down, u_bc_up, u_bc_down)
+        bc_dirichlet = self.dirichlet_condition(x1_x2_bc_up, x1_x2_bc_down, u_bc_up, u_bc_down)
         bc_neuman = self.neuman_condition(x1_x2_bc_left_right)
 
-        return tf.reduce_mean(tf.square(puasson_eq)) + 2 * (bc_dirichlet + bc_neuman)
+        weight_of_boundaries = 5
+        return tf.reduce_mean(tf.square(puasson_eq)) + weight_of_boundaries * (bc_dirichlet + bc_neuman)
 
-    def train(self, loss_threshold, x1_x2_train, x1_x2_bc_left_right, x1_x2_bc_up_down, u_bc_up, u_bc_down):
+    def train(self, loss_threshold, x1_x2_train, x1_x2_bc_left_right, x1_x2_bc_up, x1_x2_bc_down, u_bc_up, u_bc_down):
         loss_array = []
         start_time = time.time()
 
         loss = tf.constant(1)
         epoch = 0
+
         while loss.numpy() > loss_threshold:
             with tf.GradientTape() as tape:
                 u, u_x1, u_x2, u_x1_x1, u_x2_x2 = self.forward(x1_x2_train)
-                loss = self.loss_fn(x1_x2_train, u_x1_x1, u_x2_x2, x1_x2_bc_left_right, x1_x2_bc_up_down, u_bc_up, u_bc_down)
+                loss = self.loss_fn(
+                    x1_x2_train, u_x1_x1, u_x2_x2, x1_x2_bc_left_right, x1_x2_bc_up, x1_x2_bc_down, u_bc_up, u_bc_down
+                )
             grads = tape.gradient(loss, self.trainable_variables)
             self.optimizer.apply_gradients(zip(grads, self.trainable_variables))
 
@@ -221,29 +228,33 @@ class Puasson2DPINN(tf.keras.Model):
         plt.ylabel('Loss')
         plt.grid()
         plt.title('Mean loss')
-        plt.savefig("2d_poisson_equation_training.png")
+        plt.savefig("2d_laplace_equation_training.png")
         plt.show(block=False)
 
     def f(self, x1_x2):
         x1 = np.array([x[0] for x in x1_x2])
         x2 = np.array([x[1] for x in x1_x2])
-        return -np.pi * np.sin(np.pi * x1) * np.sin(np.pi * x2)
-
-N_of_train_points_2D = 10
+        return 0
+    
+    def exact_solution(self, x1_x2):
+        x1 = np.array([x[0] for x in x1_x2])
+        return -x1 + 1
+    
+N_of_train_points_2D = 5
 N_of_test_points_2D = 101
 L_x1_2D = 0.0
 R_x1_2D = 1.0
 L_x2_2D = 0.0
 R_x2_2D = 1.0
-Dirichlet_up_2D = 0.0
-Dirichlet_down_2D = 0.0
-loss_threshold_2D = 0.001
-Layers_2D = [10, 10, 10, 1]
-Learning_rate_2D = 0.005
-Optimizer_2D = tf.keras.optimizers.Adam(learning_rate=Learning_rate_2D)
+Dirichlet_up_2D = 0
+Dirichlet_down_2D = 1
+loss_threshold_2D = 0.01
+layers_2D = [10, 10, 10, 1]
+learning_rate_2D = 0.005
+optimizer_2D = tf.keras.optimizers.Adam(learning_rate=learning_rate_2D)
 
+model_2D = Puasson2DPINN(layers_2D, optimizer_2D)
 
-model_2D = Puasson2DPINN(Layers_2D, Optimizer_2D)
 x1_train = np.linspace(L_x1_2D, R_x1_2D, N_of_train_points_2D)[:, np.newaxis]
 x2_train = np.linspace(L_x2_2D, R_x2_2D, N_of_train_points_2D)[:, np.newaxis]
 x1_mesh, x2_mesh = np.meshgrid(x1_train, x2_train)
@@ -270,21 +281,21 @@ x1_x2_bc_left_right = np.hstack((x1_bc_left_right, x2_bc_left_right))
 # |          x1           |
 # |=======================|
 #          [0, -1]  ∂u/∂n = -∂u/∂x2
-x2_bc_up = L_x1_2D * np.ones_like(x1_train)
-x2_bc_down = R_x1_2D * np.ones_like(x1_train)
-x2_bc_up_down = np.concatenate((x2_bc_up, x2_bc_down))
-x1_bc_up_down = np.concatenate((x1_train, x1_train))
-x1_x2_bc_up_down = np.hstack((x1_bc_up_down, x2_bc_up_down))
+x2_bc_up = R_x2_2D * np.ones_like(x1_train)
+x2_bc_down = L_x2_2D * np.ones_like(x1_train)
+x1_x2_bc_up = np.hstack((x1_train, x2_bc_up))
+x1_x2_bc_down = np.hstack((x1_train, x2_bc_down))
 
 u_bc_up = Dirichlet_up_2D * np.ones_like(x1_train)
 u_bc_down = Dirichlet_down_2D * np.ones_like(x1_train)
 
-model_2D.train(loss_threshold_2D, x1_x2_train, x1_x2_bc_left_right, x1_x2_bc_up_down, u_bc_up, u_bc_down)
+model_2D.train(
+    loss_threshold_2D, x1_x2_train, x1_x2_bc_left_right, x1_x2_bc_up, x1_x2_bc_down, u_bc_up, u_bc_down
+)
 
-def save_and_load_model_2D(model, layers, fileName):
+def save_and_load_model(layers):
     # Save weights to file
-    model.save_weights(f'{fileName}.h5')
-
+    layers.save_weights('pinn_wave_equation_model.h5')
     # Instantiate a new model with the same layers and wave speed
     new_model = Puasson2DPINN(layers)
 
@@ -297,9 +308,9 @@ def save_and_load_model_2D(model, layers, fileName):
     _ = new_model(dummy_xt)
 
     # Load the weights from the saved file
-    loaded_model = new_model.load_weights(f'{fileName}.h5')
+    loaded_model = new_model.load_weights('pinn_wave_equation_model.h5')
     return loaded_model
-#save_and_load_model_2D(model, layers)
+#save_and_load_model(layers)
 
 # Visualize the solution
 x1_test = np.linspace(L_x1_2D, R_x1_2D, N_of_test_points_2D)[:, np.newaxis]
@@ -307,107 +318,54 @@ x2_test = np.linspace(L_x2_2D, R_x2_2D, N_of_test_points_2D)[:, np.newaxis]
 x1_mesh, x2_mesh = np.meshgrid(x1_test, x2_test)
 x1x2_test = np.hstack((x1_mesh.flatten()[:, np.newaxis], x2_mesh.flatten()[:, np.newaxis]))
 
-u_pred = model_2D.predict(x1x2_test).reshape(x1_test.shape[0], x2_test.shape[0])
+u_pred_2D = model_2D.predict(x1x2_test).reshape(x1_test.shape[0], x2_test.shape[0])
+
+# Find the index corresponding to x1 = (L_x1_2D + R_x1_2D)/2
+index_x1_05 = np.argmin(np.abs(x1_test - (L_x1_2D + R_x1_2D)/2))
+
+# Extract the values along the line x1 = (L_x1_2D + R_x1_2D)/2
+u_pred_1D_05 = u_pred_2D[:, index_x1_05]  # Assuming u_pred is 2D with shape (len(x2_test), len(x_test))
+
+# Calculate the MSE for 1D exact and 2D middle of interval [L_x1_2D, R_x1_2D]
+mse_1D = np.mean((u_pred_1D_05 - U_exact_1D.squeeze())**2)
+print(f"Mean Square Error for 1D exact and 2D middle of interval [{L_x1_2D}, {R_x1_2D}]: {mse_1D}")
+
+error_percentage_2D = calculate_max_relative_error(u_pred_1D_05, U_exact_1D.squeeze())
+print(f"Error based on max difference for 1D exact and 2D middle of interval [{L_x1_2D}, {R_x1_2D}]: {error_percentage_2D:.2f}%")
+
+# U_exact_2D = model_2D.exact_solution(x1x2_test)
+
+# error_percentage_2D = calculate_max_relative_error(u_pred_2D.flatten(), U_exact_2D)
+# print(f"Error based on max difference for 2D exact and 2D PINN [{L_x1_2D}, {R_x1_2D}]: {error_percentage_2D:.2f}%")
+
 
 plt.figure(figsize=(8, 6))
-plt.pcolor(x1_mesh, x2_mesh, u_pred, cmap='viridis')
+plt.pcolor(x1_mesh, x2_mesh, u_pred_2D, cmap='viridis')
 plt.colorbar()
 plt.xlabel('x_1')
 plt.ylabel('x_2')
-plt.title('PINN Solution for the Puasson\'s Equation')
-plt.savefig("2d_poisson_equation_exact_solution_heatmap.png")
+plt.title('PINN Solution for the Laplace\'s Equation')
+plt.savefig("2d_PINN_laplace_equation_solution_heatmap.png")
 plt.show(block=False)
 
 fig = plt.figure(figsize=(10, 6))
 ax = fig.add_subplot(111, projection='3d')
-# line, = ax.plot(np.ones_like(x_test_1D) * 0.5, x_test_1D, u_pred_1D, label='PINN Solution 1D', zorder=2)
-# line2, = ax.plot(np.ones_like(x_test_1D) * 0.5, x_test_1D, U_exact_1D, label='Exact Solution 1D', zorder=1)
-surf = ax.plot_surface(x1_mesh, x2_mesh, u_pred, cmap='viridis', linewidth=0, antialiased=False, label='PINN Solution 2D', zorder=0)
-#ax.plot(np.ones_like(x_test_1D) * 0.5, x_test_1D, U_exact_1D, label='Exact Solution 1D')
+
+surf = ax.plot_surface(x1_mesh, x2_mesh, u_pred_2D, cmap='viridis', linewidth=0, antialiased=False, label='PINN Solution 2D', zorder=0, alpha=0.8)
+line, = ax.plot(np.ones(N_of_test_points_1D) * 0.5, x_test_1D.flatten(), u_pred_1D.flatten(), label='PINN Solution 1D', zorder=2)
+line2, = ax.plot(np.ones(N_of_test_points_1D) * 0.5, x_test_1D.flatten(), U_exact_1D.flatten(), label='Exact Solution 1D', zorder=1)
+ax.plot(np.ones(N_of_test_points_1D) * 0.5, x_test_1D.flatten(), U_exact_1D.flatten(), label='Exact Solution 1D')
+
 ax.set_xlabel('x_1')
 ax.set_ylabel('x_2')
 ax.set_zlabel('u')
-ax.set_title('PINN Solution for the Puasson\'s Equation')
-color_for_legend = cm.viridis(0.5)  # Get the color from the colormap
+ax.set_title('PINN Solution for the Laplace\'s Equation')
+
+color_for_legend = cm.viridis(0.5)
 proxy = Rectangle((0, 0), 1, 1, fc=color_for_legend, edgecolor="k")
-ax.legend([proxy], ['PINN Solution 2D'])
-#ax.legend([line, line2, proxy], ['PINN Solution 1D', 'Exact Solution 1D', 'PINN Solution 2D'])
+ax.legend([line, line2, proxy], ['PINN Solution 1D', 'Exact Solution 1D', 'PINN Solution 2D'])
+
 fig.colorbar(surf, shrink=0.5, aspect=5)
-plt.savefig("2d_poisson_equation_approx_solution.png")
+
+plt.savefig("2d_and_1d_compare_PINN_laplace_equation_solution_3D.png")
 plt.show()
-
-
-print("Solving useing FEM")
-from fenics import *
-import matplotlib.pyplot as plt
-import numpy as np
-
-# Create mesh and define function space
-nx, ny = N_of_train_points_2D, N_of_train_points_2D
-mesh = UnitSquareMesh(nx, ny)
-V = FunctionSpace(mesh, 'P', 1)
-
-# Define boundary conditions
-def boundary_upper(x, on_boundary):
-    return on_boundary and near(x[1], R_x1_2D)
-
-def boundary_lower(x, on_boundary):
-    return on_boundary and near(x[1], L_x1_2D)
-
-bc_upper = DirichletBC(V, Constant(Dirichlet_up_2D), boundary_upper)
-bc_lower = DirichletBC(V, Constant(Dirichlet_down_2D), boundary_lower)
-
-bcs = [bc_upper, bc_lower]
-
-# Define problem
-u = TrialFunction(V)
-v = TestFunction(V)
-f = Expression('-pi * sin(pi * x[0]) * sin(pi * x[1])', degree=2)
-a = -dot(grad(u), grad(v))*dx
-L = f*v*dx
-
-# Compute solution
-u = Function(V)
-solve(a == L, u, bcs)
-
-# Plot solution using matplotlib
-c = plot(u)
-plt.colorbar(c)
-plt.title("FEM solution of Laplace's equation")
-plt.xlabel('x')
-plt.ylabel('y')
-plt.savefig('fenics_solution_half_dirichlet_Laplace_heatmap.png')
-plt.show()
-
-# Create a 3D plot
-fig = plt.figure(figsize=(8, 6))
-ax = fig.add_subplot(111, projection='3d')
-
-x = np.linspace(L_x1_2D, R_x1_2D, N_of_test_points_2D)
-y = np.linspace(L_x2_2D, R_x2_2D, N_of_test_points_2D)
-X, Y = np.meshgrid(x, y)
-points = np.vstack((X.ravel(), Y.ravel())).T
-
-# Initialize an array to store the solution
-u_fenics = np.zeros_like(points[:, 0])
-
-# Evaluate the FEniCS solution at each point
-for i, point in enumerate(points):
-    u_fenics[i] = u(point)
-
-# Reshape the solution to a 2D grid for plotting or comparison
-u_fenics_grid = u_fenics.reshape((len(x), len(y)))
-
-surf = ax.plot_surface(X, Y, u_fenics_grid, cmap='viridis', edgecolor='k')
-plt.colorbar(surf)
-plt.title("3D plot of the solution")
-plt.xlabel('x')
-plt.ylabel('y')
-ax.set_zlabel('u')
-plt.savefig('fenics_solution_half_dirichlet_Laplace_3D.png')
-plt.show()
-
-print("Mean Squared Error (PINN and FEM):", np.mean((u_fenics_grid - u_pred)**2))
-
-relative_error = calculate_max_relative_error(u_fenics_grid, u_pred)
-print(f"Relative error (PINN and FEM): {relative_error:.2f}%")
