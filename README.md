@@ -255,11 +255,13 @@ $$ -->
 $$ --> 
 
 <div align="center"><img style="background: white;" src="./svg/M0LD0SeN2i.svg"></div>
+
 <!-- $$
-\bigtriangleup u=0\text{ in }D,
+\bigtriangleup u=0\text{ in } D \text{(a region between }\Gamma_1\text{ and }\Gamma_2),
 $$ --> 
 
-<div align="center"><img style="background: white;" src="./svg/C4ytXhrGwH.svg"></div>
+<div align="center"><img style="background: white;" src="../svg/x6MfE1D1Nj.svg"></div>
+
 <!-- $$
 u=x\text{ on }\Gamma_1,
 $$ --> 
